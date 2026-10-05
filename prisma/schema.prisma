@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String               @id @db.VarChar(36)
+  email                String               @unique(map: "email") @db.VarChar(320)
+  passwordHash         String               @map("password_hash") @db.VarChar(255)
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt            DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  createdAchievements  Achievement[]        @relation("AchievementCreator")
+  uploadedCompanyDocs  CompanyDocument[]    @relation("CompanyDocUploader")
+  uploadedEmployeeDocs EmployeeDocument[]   @relation("EmployeeDocUploader")
+  employees            Employee[]
+  roles                UserRoleAssignment[]
+
+  @@index([email], map: "idx_users_email")
+  @@map("users")
+}
+
+model UserRoleAssignment {
+  id        String   @id @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  role      UserRole
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_roles_ibfk_1")
+
+  @@unique([userId, role], map: "unique_user_role")
+  @@index([userId], map: "idx_user_roles_user_id")
+  @@index([role], map: "idx_user_roles_role")
+  @@map("user_roles")
+}
+
+model Job {
+  id                  String        @id @db.VarChar(36)
+  title               String        @db.VarChar(255)
+  department          String        @db.VarChar(100)
+  location            String        @db.VarChar(100)
+  jobType             JobType       @default(full_time) @map("job_type")
+  description         String        @db.Text
+  requirements        String        @db.Text
+  screeningKeywords   String?       @map("screening_keywords") @db.LongText
+  isActive            Boolean?      @default(true) @map("is_active")
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt           DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  /// Present in live PHP app (admin forms + jobs-view); not in checked-in schema.sql
+  keyResponsibilities String?       @map("key_responsibilities") @db.Text
+  /// Present in live PHP app (admin forms + jobs-view); not in checked-in schema.sql
+  salaryOffered       String?       @map("salary_offered") @db.VarChar(255)
+  applications        Application[]
+
+  @@index([isActive], map: "idx_jobs_active")
+  @@index([department], map: "idx_jobs_department")
+  @@index([location], map: "idx_jobs_location")
+  @@index([jobType], map: "idx_jobs_type")
+  @@index([createdAt], map: "idx_jobs_created")
+  @@map("jobs")
+}
+
+model Application {
+  id                       String             @id @db.VarChar(36)
+  jobId                    String             @map("job_id") @db.VarChar(36)
+  name                     String             @db.VarChar(200)
+  email                    String?            @db.VarChar(255)
+  phone                    String             @db.VarChar(40)
+  linkedinUrl              String?            @map("linkedin_url") @db.VarChar(500)
+  coverLetter              String?            @map("cover_letter") @db.Text
+  resumePath               String?            @map("resume_path") @db.VarChar(500)
+  status                   ApplicationStatus  @default(new)
+  adminNotes               String?            @map("admin_notes") @db.Text
+  screeningScore           Int?               @map("screening_score")
+  screeningPriority        ScreeningPriority? @map("screening_priority")
+  screeningSummary         String?            @map("screening_summary") @db.Text
+  screeningMatchedKeywords String?            @map("screening_matched_keywords") @db.LongText
+  screeningMissingKeywords String?            @map("screening_missing_keywords") @db.LongText
+  screeningScoredAt        DateTime?          @map("screening_scored_at") @db.Timestamp(0)
+  screeningError           String?            @map("screening_error") @db.Text
+  createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt                DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  job                      Job                @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "applications_ibfk_1")
+
+  @@index([jobId], map: "idx_applications_job_id")
+  @@index([email], map: "idx_applications_email")
+  @@index([status], map: "idx_applications_status")
+  @@index([createdAt], map: "idx_applications_created")
+  @@map("applications")
+}
+
+model Employee {
+  id             String             @id @db.VarChar(36)
+  userId         String?            @map("user_id") @db.VarChar(36)
+  fullName       String             @map("full_name") @db.VarChar(200)
+  email          String             @db.VarChar(320)
+  phone          String?            @db.VarChar(40)
+  position       String             @db.VarChar(100)
+  department     String             @db.VarChar(100)
+  employmentType EmploymentType     @default(full_time) @map("employment_type")
+  dateOfJoining  DateTime           @map("date_of_joining") @db.Date
+  dateOfExit     DateTime?          @map("date_of_exit") @db.Date
+  salary         Decimal?           @db.Decimal(12, 2)
+  managerId      String?            @map("manager_id") @db.VarChar(36)
+  status         EmployeeStatus     @default(active)
+  notes          String?            @db.Text
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  achievements   Achievement[]
+  documents      EmployeeDocument[]
+  user           User?              @relation(fields: [userId], references: [id], onUpdate: NoAction, map: "employees_ibfk_1")
+  manager        Employee?          @relation("EmployeeManager", fields: [managerId], references: [id], onUpdate: NoAction, map: "employees_ibfk_2")
+  reports        Employee[]         @relation("EmployeeManager")
+  feedback       Feedback[]
+  salaryRecords  SalaryRecord[]
+
+  @@index([userId], map: "idx_employees_user_id")
+  @@index([department], map: "idx_employees_department")
+  @@index([status], map: "idx_employees_status")
+  @@index([managerId], map: "idx_employees_manager")
+  @@map("employees")
+}
+
+model EmployeeDocument {
+  id            String               @id @db.VarChar(36)
+  employeeId    String               @map("employee_id") @db.VarChar(36)
+  documentType  EmployeeDocumentType @map("document_type")
+  title         String               @db.VarChar(255)
+  description   String?              @db.Text
+  filePath      String?              @map("file_path") @db.VarChar(500)
+  amount        Decimal?             @db.Decimal(12, 2)
+  period        String?              @db.VarChar(50)
+  effectiveDate DateTime?            @map("effective_date") @db.Date
+  uploadedBy    String?              @map("uploaded_by") @db.VarChar(36)
+  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  employee      Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "employee_documents_ibfk_1")
+  uploader      User?                @relation("EmployeeDocUploader", fields: [uploadedBy], references: [id], onUpdate: NoAction, map: "employee_documents_ibfk_2")
+
+  @@index([employeeId], map: "idx_employee_docs_employee")
+  @@index([documentType], map: "idx_employee_docs_type")
+  @@index([uploadedBy], map: "uploaded_by")
+  @@map("employee_documents")
+}
+
+model CompanyDocument {
+  id            String              @id @db.VarChar(36)
+  documentType  CompanyDocumentType @map("document_type")
+  title         String              @db.VarChar(255)
+  description   String?             @db.Text
+  filePath      String?             @map("file_path") @db.VarChar(500)
+  version       String?             @db.VarChar(20)
+  effectiveDate DateTime?           @map("effective_date") @db.Date
+  isActive      Boolean?            @default(true) @map("is_active")
+  uploadedBy    String?             @map("uploaded_by") @db.VarChar(36)
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  uploader      User?               @relation("CompanyDocUploader", fields: [uploadedBy], references: [id], onUpdate: NoAction, map: "company_documents_ibfk_1")
+
+  @@index([documentType], map: "idx_company_docs_type")
+  @@index([isActive], map: "idx_company_docs_active")
+  @@index([uploadedBy], map: "uploaded_by")
+  @@map("company_documents")
+}
+
+model Feedback {
+  id         String   @id @db.VarChar(36)
+  employeeId String   @map("employee_id") @db.VarChar(36)
+  subject    String   @db.VarChar(255)
+  message    String   @db.Text
+  category   String?  @db.VarChar(50)
+  isResolved Boolean? @default(false) @map("is_resolved")
+  hrResponse String?  @map("hr_response") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "feedback_ibfk_1")
+
+  @@index([employeeId], map: "idx_feedback_employee")
+  @@index([isResolved], map: "idx_feedback_resolved")
+  @@index([createdAt], map: "idx_feedback_created")
+  @@map("feedback")
+}
+
+model Achievement {
+  id          String   @id @db.VarChar(36)
+  employeeId  String   @map("employee_id") @db.VarChar(36)
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  achievedOn  DateTime @map("achieved_on") @db.Date
+  createdBy   String?  @map("created_by") @db.VarChar(36)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(0)
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "achievements_ibfk_1")
+  creator     User?    @relation("AchievementCreator", fields: [createdBy], references: [id], onUpdate: NoAction, map: "achievements_ibfk_2")
+
+  @@index([employeeId], map: "idx_achievements_employee")
+  @@index([achievedOn], map: "idx_achievements_date")
+  @@index([createdBy], map: "created_by")
+  @@map("achievements")
+}
+
+model SalaryRecord {
+  id          String    @id @db.VarChar(36)
+  employeeId  String    @map("employee_id") @db.VarChar(36)
+  month       String    @db.VarChar(7)
+  basicSalary Decimal   @map("basic_salary") @db.Decimal(12, 2)
+  hra         Decimal?  @default(0.00) @db.Decimal(12, 2)
+  allowances  Decimal?  @default(0.00) @db.Decimal(12, 2)
+  deductions  Decimal?  @default(0.00) @db.Decimal(12, 2)
+  netSalary   Decimal   @map("net_salary") @db.Decimal(12, 2)
+  paidOn      DateTime? @map("paid_on") @db.Timestamp(0)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "salary_records_ibfk_1")
+
+  @@unique([employeeId, month], map: "unique_employee_month")
+  @@index([employeeId], map: "idx_salary_employee")
+  @@index([month], map: "idx_salary_month")
+  @@map("salary_records")
+}
+
+enum UserRole {
+  admin
+  hr
+  ceo
+  employee
+}
+
+enum JobType {
+  full_time  @map("full-time")
+  part_time  @map("part-time")
+  contract
+  internship
+}
+
+enum ApplicationStatus {
+  new
+  in_review
+  shortlisted
+  interview_scheduled
+  rejected
+  hired
+}
+
+enum ScreeningPriority {
+  high
+  medium
+  low
+}
+
+enum EmploymentType {
+  full_time  @map("full-time")
+  part_time  @map("part-time")
+  contract
+  internship
+}
+
+enum EmployeeStatus {
+  active
+  on_leave
+  terminated
+  resigned
+}
+
+enum EmployeeDocumentType {
+  offer_letter
+  salary_slip
+  increment_letter
+  employment_history
+  other
+}
+
+enum CompanyDocumentType {
+  org_chart
+  policy
+  handbook
+  other
+}
