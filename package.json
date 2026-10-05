@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:pull": "prisma db pull",
     "db:generate": "prisma generate",
+    "db:seed": "node scripts/seed-admin.mjs",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },
