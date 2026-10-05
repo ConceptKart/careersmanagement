@@ -1,14 +1,13 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
-import { v4 as uuidv4 } from "uuid";
+import crypto from "crypto";
 
 const prisma = new PrismaClient();
 
+// Pre-computed bcrypt hash of "admin123"
+const ADMIN_PASSWORD_HASH = "$2b$10$6RG/QkA5QQnfMXHOaGWLlu4aHCCnK69rEkOoOvL7A0vrA/8C/DlXm";
+
 async function main() {
   const email = "admin@conceptkart.com";
-  const password = "admin123";
-  const passwordHash = await bcrypt.hash(password, 10);
-
   console.log(`Checking database for user: ${email}...`);
 
   const existingUser = await prisma.user.findUnique({
@@ -20,15 +19,14 @@ async function main() {
     console.log(`User ${email} found! Updating password hash...`);
     await prisma.user.update({
       where: { id: existingUser.id },
-      data: { passwordHash },
+      data: { passwordHash: ADMIN_PASSWORD_HASH },
     });
 
-    // Ensure user_roles has admin and hr
     const existingRoles = existingUser.roles.map((r) => r.role);
     if (!existingRoles.includes("admin")) {
       await prisma.userRoleAssignment.create({
         data: {
-          id: uuidv4(),
+          id: crypto.randomUUID(),
           userId: existingUser.id,
           role: "admin",
         },
@@ -37,30 +35,30 @@ async function main() {
     if (!existingRoles.includes("hr")) {
       await prisma.userRoleAssignment.create({
         data: {
-          id: uuidv4(),
+          id: crypto.randomUUID(),
           userId: existingUser.id,
           role: "hr",
         },
       });
     }
-    console.log(`Successfully updated admin user password to: ${password}`);
+    console.log(`Successfully updated admin user password to: admin123`);
   } else {
     console.log(`User ${email} not found. Creating new admin user...`);
-    const userId = uuidv4();
+    const userId = crypto.randomUUID();
     await prisma.user.create({
       data: {
         id: userId,
         email,
-        passwordHash,
+        passwordHash: ADMIN_PASSWORD_HASH,
         roles: {
           create: [
-            { id: uuidv4(), role: "admin" },
-            { id: uuidv4(), role: "hr" },
+            { id: crypto.randomUUID(), role: "admin" },
+            { id: crypto.randomUUID(), role: "hr" },
           ],
         },
       },
     });
-    console.log(`Successfully created admin user: ${email} with password: ${password}`);
+    console.log(`Successfully created admin user: ${email} with password: admin123`);
   }
 }
 
